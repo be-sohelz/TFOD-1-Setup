@@ -1,0 +1,165 @@
+## Official Links : https://pastebin.com/YDgbqzTx
+## Official Links : https://c17hawke.github.io/tfod-setup/
+
+https://github.com/tensorflow/models/tree/v1.13.0  ###  Download Repo
+ 
+http://download.tensorflow.org/models/object_detection/faster_rcnn_inception_v2_coco_2018_01_28.tar.gz ###  Download Repo
+ 
+ 
+https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/tf1_detection_zoo.md ### Model Zoo Link
+ 
+https://drive.google.com/file/d/12F5oGAuQg7qBM_267TCMt_rlorV-M7gf/view?usp=sharing ### Dataset & utils Download
+ 
+https://c17hawke.github.io/tfod-setup/p02/   ##Google Colab Setup
+ 
+# Creating virtual env using conda
+conda create -n your_env_name python=3.6
+ 
+conda activate your_env_name
+ 
+# pypi 
+pip install pillow lxml Cython contextlib2 jupyter matplotlib pandas opencv-python tensorflow==1.14.0
+ 
+# From Research Folder
+ 
+python setup.py install #install object detection
+
+ 
+# conda package manager
+conda install -c anaconda protobuf
+ 
+# linux mac  from master "research" directory and after this check .py files are created in "protos" folder
+protoc object_detection/protos/*.proto --python_out=.
+#windows
+protoc object_detection/protos/*.proto --python_out=.
+ 
+ 
+ 
+#command to open Jupiter notebook from terminal.
+jupyter notebook
+ 
+and open the "object_detection_tutorial.ipynb"
+ 
+#command for Object detection program:
+
+#plot your images using
+%matplotlib inline
+plt.figure(figsize=(200,200))
+plt.imshow(image_np)
+
+### After checking Your "object_detection_tutorial.ipynb" working fine 
+
+
+4) copy all files and folders from utils to research folder like : images, training, xml_to_csv.py, generate_tfrecord.py etc.
+5) in training folder file name labelmap.pbtxt inside set your no. of classes and also make same change make in "generate_tfrecord.py" inside utils or research.
+6) create your images .xml file with labelImg / annotation tool
+7) convert all .xml file into to one .csv
+  eg. python xml_to_csv.py
+8) copy the file tfgenerate.record from utils folder to models repo in reaserch folder
+9) convert .csv to .tfrecord for understading to Tensorflow and tfrecord also faster than .csv
+  eg. python generate_tfrecord.py --csv_input=images/train_labels.csv --image_dir=images/train --output_path=train.record
+  eg. python generate_tfrecord.py --csv_input=images/test_labels.csv --image_dir=images/test --output_path=test.record
+10) to start training we need:
+	1) train.py
+	2)labelmap.pbtxt
+	3)train.record and test.record (generated)
+	4)pre-trained model (any model) copy inside research folder (eg . faster_rcnn folder)
+	5)copy train.py from "object_detection/legacy/train.py" and paste it in "research" folder
+	6)from "research/slim" copy "nets and deployment" folder in "research" folder
+	7)config file for pretrained model from object_detection/samples/ (eg. faster_rcnn_resnet_v2_coco.config ) and paste inside "training" folder
+		Total 7 changes inside model.config or faster_rcnn_resnet_v2_coco.config:
+			1) num_classes: "your no. of class " 
+			2) fine_tune_checkpoint: "faster_rcnn/model.ckpt" (your path of models .ckpt or pre-train model path )
+			3) num_steps: 200000  (no of epochs you want to train )
+			4) input_path: "train.record" (generated tfrecord from .csv )
+			5) label_map_path: "training/labelmap.pbtxt
+			6) input_path: "test.record"   (generated tfrecord from .csv )
+			7) label_map_path: "training/labelmap.pbtxt"
+
+11) start training by executing below command from research folder and it will create .ckpt file for you in training folder: 
+    python train.py --logtostderr --train_dir=training/ --pipeline_config_path=training/faster_rcnn_inception_v2_coco.config
+
+12) converting .ckpt to .pb copy "export_inference_graph.py" from "/research/object_detection/" and paste it in "/research" folder
+
+
+
+13) run following command from research and it will create "inference_graph" directory containing Your .pb Model :
+
+	1) python export_inference_graph.py --input_type image_tensor --pipeline_config_path training/faster_rcnn_inception_v2_coco.config --trained_checkpoint_prefix training/model.ckpt-1000 --output_directory inference_graph 
+
+                              ## or another way to create .ckpt to .pb
+
+	2) python export_inference_graph.py --input_type image_tensor --pipeline_config_path training/faster_rcnn_inception_v2_coco.config --trained_checkpoint_prefix training/model.ckpt-1000 --output_directory=training
+
+
+
+ ###########  Now Testing Your Model in jupyter-notebook #######################
+
+1) Load Your Model and change following Things:
+
+	MODEL_NAME = 'inference_graph'
+	PATH_TO_FROZEN_GRAPH = MODEL_NAME + '/frozen_inference_graph.pb'
+	PATH_TO_LABELS = os.path.join('training', 'labelmap.pbtxt')
+
+
+	## image path with image convention (eg. image1.jpg , image2.jpg) with .xml (image1.xml , image2.xml)
+
+	PATH_TO_TEST_IMAGES_DIR = 'images/sample_test'
+ 
+
+
+#################### Testing Your Model with web-cam ##########################
+
+
+import cv2
+ 
+cap = cv2.VideoCapture(0)
+with detection_graph.as_default():
+  with tf.Session(graph=detection_graph) as sess:
+    while True:
+      ret, image_np = cap.read()
+      # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
+      image_np_expanded = np.expand_dims(image_np, axis=0)
+      image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
+      # Each box represents a part of the image where a particular object was detected.
+      boxes = detection_graph.get_tensor_by_name('detection_boxes:0')
+      # Each score represent how level of confidence for each of the objects.
+      # Score is shown on the result image, together with the class label.
+      scores = detection_graph.get_tensor_by_name('detection_scores:0')
+      classes = detection_graph.get_tensor_by_name('detection_classes:0')
+      num_detections = detection_graph.get_tensor_by_name('num_detections:0')
+      # Actual detection.
+      (boxes, scores, classes, num_detections) = sess.run([boxes, scores, classes, num_detections],feed_dict={image_tensor: image_np_expanded})
+      # Visualization of the results of a detection.
+      vis_util.visualize_boxes_and_labels_on_image_array(
+          image_np,
+          np.squeeze(boxes),
+          np.squeeze(classes).astype(np.int32),
+          np.squeeze(scores),
+          category_index,
+          use_normalized_coordinates=True,
+          line_thickness=8)
+ 
+      cv2.imshow('object detection', cv2.resize(image_np, (800,600)))
+      if cv2.waitKey(25) & 0xFF == ord('q'):
+        cv2.destroyAllWindows()
+        break
+ 
+cap.release()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
